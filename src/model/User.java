@@ -1,9 +1,13 @@
 package model;
 
-public class Person {
-    protected String name;
+public class User extends Person {
 
+    public User(String name) {
+        this.name = name;
+    }
+
+    @Override
     public void showDetails() {
-        System.out.println("Person");
+        System.out.println("User: " + name);
     }
 }
