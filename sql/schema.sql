@@ -1,13 +1,5 @@
-CREATE DATABASE IF NOT EXISTS ALASTKA;
-USE ALASTKA;
-
-CREATE TABLE Users (
-    UserID INT AUTO_INCREMENT PRIMARY KEY,
-    Name VARCHAR(50),
-    Email VARCHAR(50),
-    Password VARCHAR(50)
-);
-
+create database alatska;
+use alatska;
 CREATE TABLE Country (
     CountryID INT PRIMARY KEY,
     CountryName VARCHAR(50)
@@ -20,10 +12,17 @@ CREATE TABLE City (
     FOREIGN KEY (CountryID) REFERENCES Country(CountryID)
 );
 
+CREATE TABLE Users (
+    UserID INT PRIMARY KEY,
+    Name VARCHAR(50),
+    Email VARCHAR(50),
+    Password VARCHAR(50)
+);
+
 CREATE TABLE TouristPlace (
     PlaceID INT PRIMARY KEY,
     PlaceName VARCHAR(50),
-    Category VARCHAR(50),
+    Category VARCHAR(30),
     CityID INT,
     FOREIGN KEY (CityID) REFERENCES City(CityID)
 );
@@ -31,7 +30,7 @@ CREATE TABLE TouristPlace (
 CREATE TABLE Accommodation (
     AccommodationID INT PRIMARY KEY,
     AccommodationName VARCHAR(50),
-    Type VARCHAR(50),
+    Type VARCHAR(30),
     PricePerNight INT,
     CityID INT,
     FOREIGN KEY (CityID) REFERENCES City(CityID)
