@@ -46,7 +46,7 @@ ALASTKA-Tourism-System/
 │   └── queries.sql  # Useful queries
 │
 ├── Documentation/
-│   └── usecase.png  # Use Case Diagram
+│   └── ProjectReports.pdf  # Phase 1 and Phase 2 Project Reports
 │
 └── README.md
 ```
