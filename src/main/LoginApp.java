@@ -98,24 +98,14 @@ public class LoginApp {
     }
 
     // --- DASHBOARD ROUTING STUBS ---
+    // --- DASHBOARD ROUTING ---
 
     private static void openAdminDashboard(String adminName) {
-        // We will build the actual Admin Dashboard in the next step
-        JFrame adminFrame = new JFrame("Admin Dashboard - ALASTKA");
-        adminFrame.setSize(400, 300);
-        adminFrame.setLocationRelativeTo(null);
-        adminFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        adminFrame.add(new JLabel("Welcome, Admin " + adminName + "!", SwingConstants.CENTER));
-        adminFrame.setVisible(true);
+        AdminDashboard adminDash = new AdminDashboard(adminName);
+        adminDash.setVisible(true);
     }
-
     private static void openUserDashboard(int userId, String userName) {
-        // We will build the actual User Dashboard in the next step
-        JFrame userFrame = new JFrame("Tourist Dashboard - ALASTKA");
-        userFrame.setSize(400, 300);
-        userFrame.setLocationRelativeTo(null);
-        userFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        userFrame.add(new JLabel("Welcome, Tourist " + userName + "!", SwingConstants.CENTER));
-        userFrame.setVisible(true);
+        TouristDashboard userDash = new TouristDashboard(userId, userName);
+        userDash.setVisible(true);
     }
-}
+} // <-- This should be the very last bracket in your entire LoginApp.java file
