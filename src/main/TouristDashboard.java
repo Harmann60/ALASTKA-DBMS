@@ -4,6 +4,8 @@ import db.DBConnection;
 import javax.swing.*;
 import java.awt.*;
 import java.sql.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 
 public class TouristDashboard {
 
@@ -19,17 +21,22 @@ public class TouristDashboard {
         frame.setSize(550, 500);
         frame.setLocationRelativeTo(null);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setLayout(new BorderLayout()); // Ensures we can add the logout button at the bottom
+        frame.setLayout(new BorderLayout());
 
         JTabbedPane tabbedPane = new JTabbedPane();
 
         // --- TAB 1: Explore Places ---
-        JPanel explorePanel = new JPanel(new GridLayout(3, 1, 15, 15));
-        explorePanel.setBorder(BorderFactory.createEmptyBorder(30, 50, 30, 50));
+        JPanel explorePanel = new JPanel(new GridLayout(4, 1, 15, 15));
+        explorePanel.setBorder(BorderFactory.createEmptyBorder(20, 50, 20, 50));
 
         JButton viewPlacesBtn = new JButton("Explore Tourist Places");
+        JButton suggestGemBtn = new JButton("Suggest a Hidden Gem 💎");
+        suggestGemBtn.setBackground(new Color(40, 167, 69));
+        suggestGemBtn.setForeground(Color.WHITE);
+
         explorePanel.add(new JLabel("Discover Your Next Adventure", SwingConstants.CENTER));
         explorePanel.add(viewPlacesBtn);
+        explorePanel.add(suggestGemBtn);
 
         // --- TAB 2: Accommodations & Bookings ---
         JPanel accPanel = new JPanel(new GridLayout(4, 1, 15, 15));
@@ -61,7 +68,7 @@ public class TouristDashboard {
         // --- BOTTOM PANEL FOR LOGOUT ---
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton logoutBtn = new JButton("Logout");
-        logoutBtn.setBackground(new Color(220, 53, 69)); // Nice red danger color
+        logoutBtn.setBackground(new Color(220, 53, 69));
         logoutBtn.setForeground(Color.WHITE);
         bottomPanel.add(logoutBtn);
 
@@ -72,13 +79,12 @@ public class TouristDashboard {
         // ACTION LISTENERS
         // ==========================================
 
-        // Logout Action
         logoutBtn.addActionListener(e -> {
-            frame.dispose(); // Closes the dashboard
-            LoginApp.main(null); // Re-opens the Login screen
+            frame.dispose();
+            LoginApp.main(null);
         });
 
-        // View Tourist Places
+        // 1. View Tourist Places
         viewPlacesBtn.addActionListener(e -> {
             String query = "SELECT p.PlaceName, p.Category, c.CityName, co.CountryName " +
                     "FROM TouristPlace p " +
@@ -94,11 +100,49 @@ public class TouristDashboard {
                 }
                 JOptionPane.showMessageDialog(frame, sb.toString(), "Explore Places", JOptionPane.INFORMATION_MESSAGE);
             } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(frame, "Error: " + ex.getMessage());
+                JOptionPane.showMessageDialog(frame, "Database Error: " + ex.getMessage());
             }
         });
 
-        // View Accommodations
+        // 2. Suggest a Hidden Gem
+        suggestGemBtn.addActionListener(e -> {
+            JTextField locNameField = new JTextField();
+            JTextArea descField = new JTextArea(4, 20);
+            descField.setLineWrap(true);
+            descField.setWrapStyleWord(true);
+
+            Object[] fields = {
+                    "Name of the Hidden Location:", locNameField,
+                    "Description / Why is it special?:", new JScrollPane(descField)
+            };
+
+            if (JOptionPane.showConfirmDialog(frame, fields, "Submit a Hidden Gem", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
+                String locName = locNameField.getText().trim();
+                String desc = descField.getText().trim();
+
+                if (locName.isEmpty() || desc.isEmpty()) {
+                    JOptionPane.showMessageDialog(frame, "Fields cannot be blank! Please provide a name and description.", "Input Error", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                String insertQuery = "INSERT INTO Hidden_Gems (DiscoveredBy_UserID, LocationName, Description, ApprovalStatus) VALUES (?, ?, ?, 'Pending')";
+                try (PreparedStatement ps = con.prepareStatement(insertQuery)) {
+                    ps.setInt(1, loggedInUserId);
+                    ps.setString(2, locName);
+                    ps.setString(3, desc);
+
+                    ps.executeUpdate();
+                    JOptionPane.showMessageDialog(frame,
+                            "Awesome! Your discovery is submitted to the Admin for review.\nOnce approved, you will earn 50 Explorer Points!",
+                            "Submission Successful",
+                            JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(frame, "Database Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        // 3. View Accommodations
         viewAccBtn.addActionListener(e -> {
             String query = "SELECT a.AccommodationID, a.AccommodationName, a.Type, a.PricePerNight, c.CityName " +
                     "FROM Accommodation a JOIN City c ON a.CityID = c.CityID";
@@ -117,11 +161,25 @@ public class TouristDashboard {
             }
         });
 
-        // Book an Accommodation
+        // 4. Book an Accommodation
         bookAccBtn.addActionListener(e -> {
+            int currentPoints = 0;
+            try (PreparedStatement pointStmt = con.prepareStatement("SELECT ExplorerPoints FROM Users WHERE UserID = ?")) {
+                pointStmt.setInt(1, loggedInUserId);
+                ResultSet rsPoints = pointStmt.executeQuery();
+                if (rsPoints.next()) {
+                    currentPoints = rsPoints.getInt("ExplorerPoints");
+                }
+            } catch (SQLException ex) {
+                System.out.println("Points check failed: " + ex.getMessage());
+            }
+
             JTextField bookingIdField = new JTextField();
             JTextField accIdField = new JTextField();
-            JTextField dateField = new JTextField("YYYY-MM-DD");
+
+            // Suggest tomorrow's date as a helpful placeholder
+            String tmrw = LocalDate.now().plusDays(1).toString();
+            JTextField dateField = new JTextField(tmrw);
 
             Object[] fields = {
                     "New Booking ID (e.g., 5):", bookingIdField,
@@ -130,21 +188,51 @@ public class TouristDashboard {
             };
 
             if (JOptionPane.showConfirmDialog(frame, fields, "Book Accommodation", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
-                try (PreparedStatement ps = con.prepareStatement("INSERT INTO Booking VALUES (?, ?, ?, ?)")) {
-                    ps.setInt(1, Integer.parseInt(bookingIdField.getText().trim()));
-                    ps.setString(2, dateField.getText().trim());
-                    ps.setInt(3, loggedInUserId);
-                    ps.setInt(4, Integer.parseInt(accIdField.getText().trim()));
+                try {
+                    int bId = Integer.parseInt(bookingIdField.getText().trim());
+                    int aId = Integer.parseInt(accIdField.getText().trim());
+                    String dateInput = dateField.getText().trim();
 
-                    ps.executeUpdate();
-                    JOptionPane.showMessageDialog(frame, "Booking Confirmed! Have a great trip!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    // === THE TIME TRAVEL CATCHER ===
+                    LocalDate bookingDate;
+                    try {
+                        bookingDate = LocalDate.parse(dateInput);
+                        if (bookingDate.isBefore(LocalDate.now())) {
+                            JOptionPane.showMessageDialog(frame, "Time travel is not supported! 🚀\nYou cannot book an accommodation in the past.", "Invalid Date", JOptionPane.WARNING_MESSAGE);
+                            return;
+                        }
+                    } catch (DateTimeParseException ex) {
+                        JOptionPane.showMessageDialog(frame, "Invalid Date! Please use exactly YYYY-MM-DD (e.g., " + tmrw + ") and ensure it's a real calendar date.", "Format Error", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+
+                    try (PreparedStatement ps = con.prepareStatement("INSERT INTO Booking VALUES (?, ?, ?, ?)")) {
+                        ps.setInt(1, bId);
+                        ps.setString(2, bookingDate.toString());
+                        ps.setInt(3, loggedInUserId);
+                        ps.setInt(4, aId);
+
+                        ps.executeUpdate();
+
+                        String successMsg = "Booking Confirmed! Have a great trip!";
+                        if (currentPoints > 0) {
+                            int discount = currentPoints * 10;
+                            successMsg += "\n\n💎 LOYALTY REWARD APPLIED 💎\nYou used " + currentPoints + " Explorer Points.\nA discount of ₹" + discount + " will be applied at check-in!";
+                        }
+
+                        JOptionPane.showMessageDialog(frame, successMsg, "Booking Success", JOptionPane.INFORMATION_MESSAGE);
+                    } catch (SQLIntegrityConstraintViolationException ex) {
+                        JOptionPane.showMessageDialog(frame, "That Booking ID already exists, or the Accommodation ID is invalid!", "Database Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(frame, "IDs must be valid numbers!", "Input Error", JOptionPane.ERROR_MESSAGE);
                 } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(frame, "Error booking accommodation: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(frame, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
 
-        // Jhanvi View Bookings
+        // 5. View Bookings
         myBookingsBtn.addActionListener(e -> {
             String query = "SELECT b.BookingID, b.BookingDate, a.AccommodationName, c.CityName " +
                     "FROM Booking b " +
@@ -173,7 +261,7 @@ public class TouristDashboard {
             }
         });
 
-        // Indrani Write a Review
+        // 6. Write a Review
         addReviewBtn.addActionListener(e -> {
             JTextField reviewIdField = new JTextField();
             JTextField ratingField = new JTextField();
@@ -188,22 +276,36 @@ public class TouristDashboard {
             };
 
             if (JOptionPane.showConfirmDialog(frame, fields, "Write a Review", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
-                try (PreparedStatement ps = con.prepareStatement("INSERT INTO Review VALUES (?, ?, ?, ?, ?)")) {
-                    ps.setInt(1, Integer.parseInt(reviewIdField.getText()));
-                    ps.setInt(2, Integer.parseInt(ratingField.getText()));
-                    ps.setString(3, commentField.getText());
-                    ps.setInt(4, loggedInUserId);
-                    ps.setInt(5, Integer.parseInt(placeIdField.getText()));
+                try {
+                    int rId = Integer.parseInt(reviewIdField.getText().trim());
+                    int pId = Integer.parseInt(placeIdField.getText().trim());
+                    int rating = Integer.parseInt(ratingField.getText().trim());
+                    String comment = commentField.getText().trim();
 
-                    ps.executeUpdate();
-                    JOptionPane.showMessageDialog(frame, "Thank you for your review!");
+                    if (rating < 1 || rating > 5) {
+                        JOptionPane.showMessageDialog(frame, "Rating must be between 1 and 5!", "Invalid Rating", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+
+                    try (PreparedStatement ps = con.prepareStatement("INSERT INTO Review VALUES (?, ?, ?, ?, ?)")) {
+                        ps.setInt(1, rId);
+                        ps.setInt(2, rating);
+                        ps.setString(3, comment);
+                        ps.setInt(4, loggedInUserId);
+                        ps.setInt(5, pId);
+
+                        ps.executeUpdate();
+                        JOptionPane.showMessageDialog(frame, "Thank you for your review!");
+                    }
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(frame, "Review ID, Place ID, and Rating must be numbers!", "Input Error", JOptionPane.ERROR_MESSAGE);
                 } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(frame, "Error adding review: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(frame, "Database Error: " + ex.getMessage());
                 }
             }
         });
 
-        // Ayush this is edit part My Review
+        // 7. Edit My Review
         updateReviewBtn.addActionListener(e -> {
             JTextField reviewIdField = new JTextField();
             JTextField ratingField = new JTextField();
@@ -221,6 +323,11 @@ public class TouristDashboard {
                     int newRating = Integer.parseInt(ratingField.getText().trim());
                     String newComment = commentField.getText().trim();
 
+                    if (newRating < 1 || newRating > 5) {
+                        JOptionPane.showMessageDialog(frame, "Rating must be between 1 and 5!", "Invalid Rating", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+
                     String updateQuery = "UPDATE Review SET Rating=?, Comment=? WHERE ReviewID=? AND UserID=?";
                     try (PreparedStatement ps = con.prepareStatement(updateQuery)) {
                         ps.setInt(1, newRating);
@@ -237,7 +344,7 @@ public class TouristDashboard {
                         }
                     }
                 } catch (NumberFormatException ex) {
-                    JOptionPane.showMessageDialog(frame, "Invalid input! Please enter numbers for ID and Rating.", "Format Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(frame, "Review ID and Rating must be numbers!", "Format Error", JOptionPane.ERROR_MESSAGE);
                 } catch (SQLException ex) {
                     JOptionPane.showMessageDialog(frame, "Database Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 }
